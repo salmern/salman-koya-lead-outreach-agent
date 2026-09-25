@@ -12,6 +12,7 @@ import {
   FileText,
   Loader2,
   RefreshCw,
+  Search,
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
@@ -27,6 +28,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
@@ -517,6 +519,9 @@ export function RunDetail({
 }) {
   const [bundle, setBundle] = useState<RunBundle>(initial);
   const [cancelling, setCancelling] = useState(false);
+  const [showRediscover, setShowRediscover] = useState(false);
+  const [rediscoverQuery, setRediscoverQuery] = useState("");
+  const [rediscovering, setRediscovering] = useState(false);
   const active = isActiveStatus(bundle.run.status);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -591,6 +596,31 @@ export function RunDetail({
     }
   }
 
+  async function rediscover() {
+    if (!rediscoverQuery.trim()) {
+      toast.error("Enter a search query before retrying.");
+      return;
+    }
+    setRediscovering(true);
+    try {
+      const res = await fetch(`/api/runs/${run.id}/rediscover`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ searchQuery: rediscoverQuery.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Could not re-queue discovery.");
+      toast.success("Discovery re-queued with the new search query.");
+      setShowRediscover(false);
+      setRediscoverQuery("");
+      await refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Rediscover failed.");
+    } finally {
+      setRediscovering(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
 
@@ -624,6 +654,19 @@ export function RunDetail({
                 {run.status === "draft" ? "Refine ICP" : "Re-refine ICP"}
               </Button>
             )}
+            {/* Search again — shown when run finished below target */}
+            {canManage &&
+              ["needs_review", "completed"].includes(run.status) &&
+              qualifiedLeads.length < target && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowRediscover((v) => !v)}
+                >
+                  <Search className="mr-1.5 h-3.5 w-3.5" />
+                  Search again
+                </Button>
+              )}
             {canManage && active && (
               <Button variant="outline" size="sm" onClick={cancelRun} disabled={cancelling}>
                 {cancelling
@@ -665,6 +708,45 @@ export function RunDetail({
       {run.error_message && (
         <Card className="border-destructive/40">
           <CardContent className="pt-6 text-sm text-destructive">{run.error_message}</CardContent>
+        </Card>
+      )}
+
+      {/* ── Search again panel ───────────────────────────────────────── */}
+      {showRediscover && (
+        <Card>
+          <CardContent className="space-y-3 pt-5">
+            <div>
+              <p className="text-sm font-medium">Search again with a different query</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Enter a specific search query. The agent will use it for the first discovery
+                attempt instead of deriving one from the ICP. Existing qualified leads are kept.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Input
+                className="text-sm"
+                placeholder="e.g. B2B SaaS startup scaling operations team United States"
+                value={rediscoverQuery}
+                onChange={(e) => setRediscoverQuery(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && rediscover()}
+                disabled={rediscovering}
+              />
+              <Button size="sm" onClick={rediscover} disabled={rediscovering || !rediscoverQuery.trim()}>
+                {rediscovering
+                  ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  : <Search className="mr-1.5 h-3.5 w-3.5" />}
+                {rediscovering ? "Queueing…" : "Run"}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => { setShowRediscover(false); setRediscoverQuery(""); }}
+                disabled={rediscovering}
+              >
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
         </Card>
       )}
 

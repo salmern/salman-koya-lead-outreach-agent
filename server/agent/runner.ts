@@ -209,7 +209,9 @@ export async function runResearchPhase(runId: string, options: ResearchRunOption
 
   try {
     const iterator = query({
-      prompt: "Begin the research workflow now. Follow the required workflow exactly and stop at the configured limits.",
+      prompt: run.agent_metadata?.rediscover_hint_query
+        ? `Begin the research workflow now. For your first discover_companies call, use this search query: "${run.agent_metadata.rediscover_hint_query}". This query was provided by the user to find a better-fitting candidate pool. Follow the required workflow exactly after that.`
+        : "Begin the research workflow now. Follow the required workflow exactly and stop at the configured limits.",
       options: {
         cwd: process.cwd(),
         systemPrompt: researchSystemPrompt({
