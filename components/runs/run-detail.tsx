@@ -609,7 +609,13 @@ export function RunDetail({
         body: JSON.stringify({ searchQuery: rediscoverQuery.trim() }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Could not re-queue discovery.");
+      if (!res.ok) {
+        // Show Zod validation details when available (422), otherwise generic message.
+        const msg = data.details
+          ? `${data.error}: ${(data.details as string[]).join("; ")}`
+          : (data.error ?? "Could not re-queue discovery.");
+        throw new Error(msg);
+      }
       toast.success("Discovery re-queued with the new search query.");
       setShowRediscover(false);
       setRediscoverQuery("");

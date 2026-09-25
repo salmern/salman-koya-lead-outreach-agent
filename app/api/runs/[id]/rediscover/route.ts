@@ -66,23 +66,28 @@ export async function POST(request: Request, { params }: Params) {
       return apiError("APIFY_API_TOKEN and APIFY_ACTOR_ID must be configured.", 400);
     }
 
-    const body = bodySchema.parse(await readJson(request));
+    // Parse body first so we fail fast on bad input before touching the DB.
+    let parsedBody: { searchQuery: string };
+    try {
+      parsedBody = bodySchema.parse(await readJson(request));
+    } catch (err) {
+      if (err instanceof Error && "issues" in err) {
+        const issues = (err as { issues: { message: string }[] }).issues;
+        return apiError(`Invalid input: ${issues.map((i) => i.message).join("; ")}`, 422);
+      }
+      return apiError("Search query is required and must be between 5 and 300 characters.", 422);
+    }
 
     // Store the hint and clear the candidate pool so the new search starts
     // fresh. Leads already written to the leads table are preserved.
     await updateRun(id, {
       agent_metadata: {
         ...(run.agent_metadata ?? {}),
-        rediscover_hint_query: body.searchQuery,
+        rediscover_hint_query: parsedBody.searchQuery,
         rediscover_at: new Date().toISOString(),
       },
-      // Clear candidates so discover_companies sees remaining = maxCandidates
-      // rather than 0 remaining. Without this the tool immediately returns
-      // "candidate limit already reached" and the agent has nothing to do.
       pending_candidates: [],
       candidate_count: 0,
-      // Keep qualified/needs_review/not_qualified counts — those leads still
-      // exist in the leads table and count toward the target.
     });
 
     const claimed = await transitionRunStatus(id, REDISCOVERABLE, "queued");
@@ -93,8 +98,8 @@ export async function POST(request: Request, { params }: Params) {
     await logEvent(
       id,
       "REDISCOVER_QUEUED",
-      `Re-queued for a new discovery pass. Hint query: "${body.searchQuery}"`,
-      { hint_query: body.searchQuery },
+      `Re-queued for a new discovery pass. Hint query: "${parsedBody.searchQuery}"`,
+      { hint_query: parsedBody.searchQuery },
     ).catch(() => {});
 
     return json({ run: await getRunForViewer(id) });
