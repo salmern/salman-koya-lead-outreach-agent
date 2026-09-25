@@ -238,6 +238,102 @@ function EvidenceSection({ lead }: { lead: Lead }) {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
+ * DisqualifyPanel — small action shown on qualified leads so a reviewer can
+ * override the agent's decision without going through Supabase directly.
+ * ───────────────────────────────────────────────────────────────────────────── */
+function DisqualifyPanel({
+  lead,
+  onLeadChanged,
+}: {
+  lead: Lead;
+  onLeadChanged: (updated: Lead) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [note, setNote] = useState("");
+  const [open, setOpen] = useState(false);
+
+  async function disqualify() {
+    setSaving(true);
+    try {
+      const body: Record<string, unknown> = { qualificationStatus: "not_qualified" };
+      if (note.trim()) {
+        body.concerns = [...lead.concerns, `Reviewer override: ${note.trim()}`];
+      }
+      const res = await fetch(`/api/leads/${lead.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Could not disqualify the lead.");
+      onLeadChanged(data.lead as Lead);
+      toast.success("Lead disqualified.");
+      setNote("");
+      setOpen(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Disqualify failed.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">
+          Disagree with this qualification?
+        </p>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="text-muted-foreground hover:text-destructive"
+          onClick={() => setOpen(true)}
+        >
+          <CircleX className="mr-1.5 h-3.5 w-3.5" />
+          Disqualify
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium">Override qualification</p>
+        <Button size="sm" variant="ghost" onClick={() => setOpen(false)} disabled={saving}>
+          Cancel
+        </Button>
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs font-medium text-muted-foreground">
+          Reason (optional)
+        </Label>
+        <Textarea
+          rows={2}
+          placeholder="e.g. Company is too well-funded — not a good fit for Koya."
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          disabled={saving}
+          className="resize-none text-sm"
+        />
+      </div>
+      <Button
+        size="sm"
+        variant="outline"
+        className="border-destructive/40 text-destructive hover:bg-destructive/10"
+        onClick={disqualify}
+        disabled={saving}
+      >
+        {saving
+          ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+          : <CircleX className="mr-1.5 h-3.5 w-3.5" />}
+        Confirm disqualify
+      </Button>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
  * GenerateOutreachButton — shown when a qualified lead has no drafts yet.
  * Fires a targeted agent call (draft only, no re-discovery) and updates the
  * outreach column in place.
@@ -395,11 +491,19 @@ function LeadCard({
           <div className="space-y-5 p-5">
             <EvidenceSection lead={lead} />
 
-            {/* Review panel — only for needs_review */}
+            {/* Review panel — for needs_review leads */}
             {isNeedsReview && (
               <>
                 <Separator />
                 <LeadReviewPanel lead={lead} onLeadChanged={handleLeadUpdated} />
+              </>
+            )}
+
+            {/* Disqualify option — for leads the agent qualified but reviewer disagrees */}
+            {!isNeedsReview && !isNotQualified && (
+              <>
+                <Separator />
+                <DisqualifyPanel lead={lead} onLeadChanged={handleLeadUpdated} />
               </>
             )}
           </div>
