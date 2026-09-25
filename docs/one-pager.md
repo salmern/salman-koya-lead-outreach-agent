@@ -35,7 +35,9 @@ A completed run produces a minimum of 10 qualified companies with evidence-backe
 10. Run marked Completed or Incomplete
 11. Human reviews leads, evidence, and outreach drafts  <-- hard gate
 12. Human approves or edits each email step
-13. Export: CSV, JSON, or Markdown sample pack
+13. (Optional) Human clicks Search again with a new query to run a second
+    discovery pass — existing qualified leads are preserved
+14. Export: CSV, JSON, or Markdown sample pack
 ```
 
 Human decisions occur at step 3 (ICP confirmation), step 11 (lead review), and step 12 (outreach approval). Nothing is sent automatically.
@@ -130,6 +132,8 @@ If the run shows status Failed, check the error message and the audit trail. Com
 |---|---|---|
 | Run stays in Discovering for more than 10 minutes | Apify actor hung | Open Apify Console, check the run, abort if still running |
 | 0 candidates discovered | Search query too narrow, or wrong Apify token | Try a simpler query; verify APIFY_API_TOKEN is from the team account |
+| Candidate pool is full of wrong companies (vendors, agencies) | Search query used product-category terms instead of problem-signal language | Use the Search again button on the run page — enter a query using growth/ops language like "B2B SaaS startup scaling operations team" instead of category labels |
+| Run finished with fewer leads than target | Not enough ICP-matching companies in the first candidate pool | Click Search again, enter a different search angle, and the agent will run a second discovery pass preserving existing qualified leads |
 | Outreach save returns 422 | Email address found in draft copy | Edit the draft to remove the email |
 | Run marked Failed on boot | Worker recovered a stuck run from a previous process restart | Start a new run; the interrupted run cannot be resumed |
 | Quality report counts are stale | Lead status changed after run completed | Click Refresh on the quality report card |

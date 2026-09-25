@@ -89,7 +89,7 @@ The biggest dependency is the Apify team account. If that token expires or budge
 
 One lesson from testing: when the objective names product categories like 'HR tech' or 'sales enablement' as examples, the agent would search LinkedIn for HR software vendors instead of companies that need internal automation. We fixed this by adding explicit query construction rules to the system prompt — the agent now uses growth-signal and business-problem language rather than product-category labels when building its search query.
 
-Next steps I would prioritize: a hybrid model approach using Haiku for simple steps and Sonnet only for reasoning-heavy ones, a proper async queue instead of the in-process polling worker, and a way to retry discovery with a different search query from the UI without starting a new run from scratch."
+Next steps I would prioritize: a hybrid model approach using Haiku for simple steps and Sonnet only for reasoning-heavy ones, and a proper async queue instead of the in-process polling worker."
 
 ---
 
