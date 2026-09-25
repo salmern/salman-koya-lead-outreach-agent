@@ -1,6 +1,6 @@
 import { apiError, handle, json } from "@/server/api";
 import { requireRole } from "@/server/auth";
-import { saveQualityReport } from "@/server/db";
+import { refreshRunCounts, saveQualityReport } from "@/server/db";
 import { getRunForViewer } from "@/server/user-db";
 import { runQualityCheck } from "@/server/quality-check";
 
@@ -40,15 +40,19 @@ export async function POST(_request: Request, { params }: Params) {
 
     const report = await runQualityCheck(id);
 
-    // Persist the refreshed report and choose a terminal status.
-    // If the reviewer promoted enough leads to qualified, move to "completed";
-    // otherwise keep/set to "needs_review".
+    // Persist the refreshed report, run counts, and terminal status.
     const status =
       report.structural_ok && report.safety_passed && report.qualified > 0
         ? "completed"
         : "needs_review";
 
     await saveQualityReport(id, report, status);
+
+    // Also refresh the cached aggregate counts on the run record so the
+    // dashboard (which reads qualified_count / needs_review_count directly)
+    // reflects the current DB state rather than the stale values from when
+    // the agent originally finished.
+    await refreshRunCounts(id);
 
     const refreshed = await getRunForViewer(id);
     return json({ run: refreshed, report });
