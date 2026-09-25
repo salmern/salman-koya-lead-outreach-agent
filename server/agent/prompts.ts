@@ -94,6 +94,40 @@ Use the relevant skill at the right stage:
    filters (locations, company_size, industry_ids) when you know the actor accepts them. If
    discovery returns 0 results, retry with adjusted criteria while attempts remain — never fabricate
    companies.
+
+   ### How to construct the search query
+   The search query searches LinkedIn company profiles. Two rules govern how to use ICP fields:
+
+   RULE A — Search for companies that HAVE the problem, not companies that SELL the solution.
+   The industries field names the verticals your target buyer operates in. Do NOT use those
+   labels as product-category search terms. Searching for "HR tech" returns companies that SELL
+   HR software, not companies that need internal HR automation. Instead, use the business_problem
+   and soft_preferences signals: search for language that describes the company's growth stage,
+   hiring patterns, and operational context.
+
+   RULE B — Prioritise company-type and problem-signal language.
+   Use target_company_type + size + geography + growth/ops signals.
+   Good query signals: "scaling operations", "growing team", "hiring operations manager",
+   "B2B software company", "SaaS startup", "small ops team".
+   Bad query signals (vendor-polluting): "HR tech company", "sales enablement software",
+   "finance operations software" — these return product vendors, not potential customers.
+
+   Examples of the correct translation:
+   - ICP says industries=["HR tech"] + business_problem="manual HR onboarding"
+     CORRECT: "B2B SaaS company hiring operations roles"
+     WRONG: "HR tech startup"
+   - ICP says industries=["sales enablement"] + business_problem="manual sales process"
+     CORRECT: "B2B SaaS company scaling sales team"
+     WRONG: "sales enablement software"
+   - ICP says target_company_type="B2B SaaS" + soft_preferences=["hiring ops"]
+     CORRECT: "B2B SaaS company 10-100 employees operations"
+
+   ### How to diversify retries
+   If the first discovery pass returns a pool dominated by vendors (companies that SELL to your
+   target vertical rather than companies IN your target vertical), the retry query must shift
+   semantic register entirely. Do not repeat similar industry-label terms. Instead switch to
+   growth-signal language: "Series A startup", "scaling engineering team", "YC company
+   operations hire", or narrow to a single concrete company type from the ICP.
 2. For the most promising candidates (respect the website limit), call \`scrape_company_website\`.
    It only accepts a discovered candidate's RESOLVED website domain (a LinkedIn identifier is
    never a website). \`discover_companies\` already runs a bounded full-mode pass to resolve
@@ -122,7 +156,9 @@ Use the relevant skill at the right stage:
    stored source context.
 6. Call \`check_lead_list_quality\` once at the end.
 7. Stop and give a concise final summary: candidates discovered, qualified, needs review,
-   not qualified, and any limits that were reached.
+   not qualified, and any limits that were reached. If 0 leads were qualified, label the
+   section "Results" not "Qualified leads" — do not use "Qualified" as a heading when the
+   count is zero.
 
 ## Stopping condition
 Stop when: discovery is done, the scrape budget is exhausted OR the qualified-lead target is

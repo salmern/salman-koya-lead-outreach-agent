@@ -69,6 +69,18 @@ Produce a single ICP object exactly matching this schema before searching:
 
 - `target_company_type`: e.g. "B2B SaaS company", "agency", "ecommerce brand".
 - `industries`: list, e.g. ["B2B software", "logistics", "health tech"].
+
+  IMPORTANT — semantic distinction: `industries` describes the vertical or domain that the
+  TARGET COMPANY operates in or serves, NOT the product category they sell. For example:
+  - A company that sells software to logistics businesses → industries: ["logistics"]
+  - A company that needs internal HR automation → industries: ["HR", "human resources"]
+  - A company in healthcare that needs ops automation → industries: ["healthcare"]
+
+  Do NOT store the SOLUTION category here. If the objective mentions "HR tech" as an example
+  of WHERE companies might need automation, the industry is "HR" or "human resources" — not
+  "HR tech software" or "HR technology". Storing product-category labels like "HR tech" or
+  "sales enablement software" in industries[] causes the discovery agent to search for vendors
+  of that software rather than potential buyers.
 - `geography`: list of countries/regions, e.g. ["United States"].
 - `headcount_range`: human-readable range, e.g. "10–100 employees".
 - `buyer_persona`: title/role of the person to pitch, e.g. "Founder / COO / Head of Operations".
