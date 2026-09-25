@@ -68,17 +68,17 @@ The trade-off I made: I used Claude Sonnet instead of Haiku. Sonnet costs more p
 "The check_lead_list_quality tool ran. The quality report shows the qualified count, safety check passed, and evidence check status."
 
 **2:15 — Reviewing a lead**
-"I'll open a qualified lead. I can see the fit reasons, the evidence summary, the source URLs. On the right, the 3-step outreach sequence. I'll approve email 1. I'll edit email 2 to remove a placeholder. I'll save — it is now marked as Reviewed."
+"I'll click the card for a qualified lead to expand it. I can see the fit reasons, the evidence summary, and the source URLs on the left. On the right, the 3-step outreach sequence. I can see the placeholder warning on one of the emails — I'll hit Edit to replace it with a proper opener before approving. I'll save — it is now marked as Reviewed. I'll approve the other two steps as-is."
 
-**2:40 — Supabase records**
+**2:30 — Supabase records**
 "I'll switch to Supabase. You can see the leads table with the run_id, domain, qualification_status, confidence, source_urls as a JSON array, and the timestamps. The outreach_drafts table shows 3 rows per qualified lead with the review_status changing as I approved them."
 
-**2:55 — Export**
+**2:50 — Export**
 "Finally, I'll export a sample pack. This is a Markdown document containing the qualification objective, the refined ICP, the quality report, and for each qualified lead — the source summary, fit reasons, and the full 3-step email sequence."
 
 ---
 
-## SLIDE 4 — Limitations and Next Steps (30 seconds)
+## SLIDE 4 — Limitations and Next Steps (40 seconds)
 
 **Narration:**
 "What is still manual: ICP confirmation, lead review, outreach approval, and sharing the final list.
@@ -86,6 +86,8 @@ The trade-off I made: I used Claude Sonnet instead of Haiku. Sonnet costs more p
 What is not implemented: CRM integration, email sending, LinkedIn outreach, personal email discovery — deliberately, by design.
 
 The biggest dependency is the Apify team account. If that token expires or budget runs out, discovery returns zero results.
+
+One lesson from testing: when the objective names product categories like 'HR tech' or 'sales enablement' as examples, the agent would search LinkedIn for HR software vendors instead of companies that need internal automation. We fixed this by adding explicit query construction rules to the system prompt — the agent now uses growth-signal and business-problem language rather than product-category labels when building its search query.
 
 Next steps I would prioritize: a hybrid model approach using Haiku for simple steps and Sonnet only for reasoning-heavy ones, a proper async queue instead of the in-process polling worker, and a way to retry discovery with a different search query from the UI without starting a new run from scratch."
 
