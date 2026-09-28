@@ -3,11 +3,9 @@ import { requireRole } from "@/server/auth";
 import { config, isExternalIntegrationConfigured } from "@/server/config";
 import { getLeadForViewer, listOutreachForViewer } from "@/server/user-db";
 import { getRun, upsertOutreach } from "@/server/db";
-import { createRequire } from "node:module";
 import { logEvent } from "@/server/agent/logging";
 import { validateOutreachOutput } from "@/server/agent/validation";
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { SKILL_NAMES } from "@/server/agent/tools";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -54,6 +52,7 @@ export async function POST(_request: Request, { params }: Params) {
     const sdkEnv: Record<string, string | undefined> = {
       ...process.env,
       ANTHROPIC_API_KEY: config.anthropicApiKey || process.env.ANTHROPIC_API_KEY,
+      ...(process.env.VERCEL ? { CLAUDE_CONFIG_DIR: "/tmp/.claude" } : {}),
     };
 
     const prompt = `
@@ -92,22 +91,11 @@ Rules:
           systemPrompt:
             "You are an outbound copywriter. Use the outbound-copywriting skill. " +
             "Return only the JSON object requested. Never fabricate customer case studies or invent quantitative outcomes.",
-          tools: [],
-          skills: SKILL_NAMES,
+          allowedTools: ["Skill"],
+          tools: ["Skill"],
           settingSources: ["project"],
           maxTurns: 4,
           ...(config.claudeModel ? { model: config.claudeModel } : {}),
-          ...(() => {
-            const _req = createRequire(import.meta.url);
-            const candidates = [
-              "@anthropic-ai/claude-agent-sdk-linux-x64/claude",
-              "@anthropic-ai/claude-agent-sdk-darwin-arm64/claude",
-            ];
-            for (const pkg of candidates) {
-              try { return { pathToClaudeCodeExecutable: _req.resolve(pkg) }; } catch { /**/ }
-            }
-            return {};
-          })(),
           env: sdkEnv,
         },
       });

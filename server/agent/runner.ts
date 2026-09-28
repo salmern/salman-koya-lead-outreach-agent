@@ -1,6 +1,5 @@
 import "server-only";
 
-import { createRequire } from "node:module";
 import { query, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 
 import { config, effectiveLimits, isExternalIntegrationConfigured } from "@/server/config";
@@ -10,7 +9,6 @@ import { fallbackRefineIcp } from "@/server/agent/fallback-icp";
 import {
   REFINE_TOOL_NAMES,
   RESEARCH_TOOL_NAMES,
-  SKILL_NAMES,
   createRefineToolServer,
   createResearchToolServer,
 } from "@/server/agent/tools";
@@ -18,45 +16,12 @@ import type { ToolEnv } from "@/server/agent/env";
 import { logEvent } from "@/server/agent/logging";
 import type { RefinedIcp } from "@/server/types";
 
-/**
- * Resolves the Claude Agent SDK native binary path using the same mechanism
- * the SDK uses internally (createRequire relative to the SDK package), so it
- * works regardless of process.cwd() — which can differ between local dev and
- * Vercel's serverless runtime.
- *
- * We pass the resolved path explicitly via pathToClaudeCodeExecutable so the
- * SDK never needs to do its own discovery (which fails when optional packages
- * are missing or the working directory is unexpected).
- *
- * Candidate order:
- *   1. linux-x64 (Vercel production — glibc)
- *   2. darwin-arm64 (local Mac M-series)
- *   3. darwin-x64 (local Mac Intel)
- *   4. undefined → SDK falls back to its own discovery
- */
-function resolveClaudeBinaryPath(): string | undefined {
-  const _require = createRequire(import.meta.url);
-  const candidates = [
-    "@anthropic-ai/claude-agent-sdk-linux-x64/claude",
-    "@anthropic-ai/claude-agent-sdk-darwin-arm64/claude",
-    "@anthropic-ai/claude-agent-sdk-darwin-x64/claude",
-  ];
-  for (const pkg of candidates) {
-    try {
-      return _require.resolve(pkg);
-    } catch {
-      // package not installed for this platform — try next
-    }
-  }
-  return undefined;
-}
-
-const CLAUDE_BINARY_PATH = resolveClaudeBinaryPath();
-
 const sdkEnv: Record<string, string | undefined> = {
   ...process.env,
   ANTHROPIC_API_KEY: config.anthropicApiKey || process.env.ANTHROPIC_API_KEY,
   CLAUDE_AGENT_SDK_CLIENT_APP: "koya-lead-agent/1.0.0",
+  // Vercel functions only allow writes under /tmp; the CLI stores session state in its config dir.
+  ...(process.env.VERCEL ? { CLAUDE_CONFIG_DIR: "/tmp/.claude" } : {}),
 };
 
 export interface AgentOutcome {
@@ -176,13 +141,12 @@ export async function runRefinePhase(runId: string): Promise<AgentOutcome> {
         cwd: process.cwd(),
         systemPrompt: refineSystemPrompt(run.original_objective, run.icp_overrides ?? {}),
         mcpServers: { koya_icp: createRefineToolServer(env) },
-        allowedTools: REFINE_TOOL_NAMES,
-        tools: [],
-        skills: SKILL_NAMES,
+        allowedTools: [...REFINE_TOOL_NAMES, "Skill"],
+        // Only the Skill built-in: project skills load from .claude/skills via settingSources.
+        tools: ["Skill"],
         settingSources: ["project"],
         maxTurns: Math.min(effectiveLimits(run.tool_limits).maxAgentTurns, 8),
         ...(config.claudeModel ? { model: config.claudeModel } : {}),
-        ...(CLAUDE_BINARY_PATH ? { pathToClaudeCodeExecutable: CLAUDE_BINARY_PATH } : {}),
         abortController,
         env: sdkEnv,
       },
@@ -258,13 +222,12 @@ export async function runResearchPhase(runId: string, options: ResearchRunOption
           desiredLeadCount: run.desired_lead_count,
         }),
         mcpServers: { koya_research: createResearchToolServer(env) },
-        allowedTools: RESEARCH_TOOL_NAMES,
-        tools: [],
-        skills: SKILL_NAMES,
+        allowedTools: [...RESEARCH_TOOL_NAMES, "Skill"],
+        // Only the Skill built-in: project skills load from .claude/skills via settingSources.
+        tools: ["Skill"],
         settingSources: ["project"],
         maxTurns: limits.maxAgentTurns,
         ...(config.claudeModel ? { model: config.claudeModel } : {}),
-        ...(CLAUDE_BINARY_PATH ? { pathToClaudeCodeExecutable: CLAUDE_BINARY_PATH } : {}),
         abortController,
         env: sdkEnv,
       },
