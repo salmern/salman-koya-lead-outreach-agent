@@ -67,32 +67,39 @@ async function consume(
   let outcome = emptyOutcome();
   let sawResult = false;
 
-  for await (const message of iterator) {
-    if (message.type === "assistant") {
-      const text = (message.message.content as Array<{ type: string; text?: string }>)
-        .filter((block) => block.type === "text" && block.text)
-        .map((block) => block.text)
-        .join("\n")
-        .trim();
-      if (text) {
-        await logEvent(runId, "AGENT_PROGRESS", text.slice(0, 400), {}).catch(() => {});
+  try {
+    for await (const message of iterator) {
+      if (message.type === "assistant") {
+        const text = (message.message.content as Array<{ type: string; text?: string }>)
+          .filter((block) => block.type === "text" && block.text)
+          .map((block) => block.text)
+          .join("\n")
+          .trim();
+        if (text) {
+          await logEvent(runId, "AGENT_PROGRESS", text.slice(0, 400), {}).catch(() => {});
+        }
+      }
+
+      if (message.type === "result") {
+        sawResult = true;
+        const isError = message.subtype !== "success";
+        outcome = {
+          subtype: message.subtype,
+          isError,
+          resultText: message.subtype === "success" ? message.result : "",
+          totalCostUsd: message.total_cost_usd ?? 0,
+          numTurns: message.num_turns ?? 0,
+          aborted: false,
+          errorMessages: isError ? (message.errors ?? []) : [],
+        };
+        onResult(outcome);
       }
     }
-
-    if (message.type === "result") {
-      sawResult = true;
-      const isError = message.subtype !== "success";
-      outcome = {
-        subtype: message.subtype,
-        isError,
-        resultText: message.subtype === "success" ? message.result : "",
-        totalCostUsd: message.total_cost_usd ?? 0,
-        numTurns: message.num_turns ?? 0,
-        aborted: false,
-        errorMessages: isError ? (message.errors ?? []) : [],
-      };
-      onResult(outcome);
-    }
+  } catch (err) {
+    // The SDK throws once the CLI exits non-zero, which it does right after
+    // emitting an error result (e.g. error_max_turns). That result is already
+    // recorded, so return it and let the caller finish the run gracefully.
+    if (!sawResult && !abortController.signal.aborted) throw err;
   }
 
   if (!sawResult) {
