@@ -815,7 +815,8 @@ export function RunDetail({
       </div>
 
       {/* ── Error banner ─────────────────────────────────────────────── */}
-      {run.error_message && (
+      {/* Only while failed: a later successful attempt can leave a stale message behind. */}
+      {run.status === "failed" && run.error_message && (
         <Card className="border-destructive/40">
           <CardContent className="pt-6 text-sm text-destructive">{run.error_message}</CardContent>
         </Card>
