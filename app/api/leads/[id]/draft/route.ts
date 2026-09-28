@@ -3,8 +3,7 @@ import { requireRole } from "@/server/auth";
 import { config, isExternalIntegrationConfigured } from "@/server/config";
 import { getLeadForViewer, listOutreachForViewer } from "@/server/user-db";
 import { getRun, upsertOutreach } from "@/server/db";
-import * as fs from "node:fs";
-import * as path from "node:path";
+import { createRequire } from "node:module";
 import { logEvent } from "@/server/agent/logging";
 import { validateOutreachOutput } from "@/server/agent/validation";
 import { query } from "@anthropic-ai/claude-agent-sdk";
@@ -99,11 +98,15 @@ Rules:
           maxTurns: 4,
           ...(config.claudeModel ? { model: config.claudeModel } : {}),
           ...(() => {
-            const p = [
-              path.join(process.cwd(), "node_modules/@anthropic-ai/claude-agent-sdk-linux-x64/claude"),
-              path.join(process.cwd(), "node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/claude"),
-            ].find((c) => { try { return fs.existsSync(c); } catch { return false; } });
-            return p ? { pathToClaudeCodeExecutable: p } : {};
+            const _req = createRequire(import.meta.url);
+            const candidates = [
+              "@anthropic-ai/claude-agent-sdk-linux-x64/claude",
+              "@anthropic-ai/claude-agent-sdk-darwin-arm64/claude",
+            ];
+            for (const pkg of candidates) {
+              try { return { pathToClaudeCodeExecutable: _req.resolve(pkg) }; } catch { /**/ }
+            }
+            return {};
           })(),
           env: sdkEnv,
         },

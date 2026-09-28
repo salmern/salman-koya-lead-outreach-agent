@@ -1,7 +1,6 @@
 import "server-only";
 
-import * as path from "node:path";
-import * as fs from "node:fs";
+import { createRequire } from "node:module";
 import { query, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 
 import { config, effectiveLimits, isExternalIntegrationConfigured } from "@/server/config";
@@ -20,35 +19,33 @@ import { logEvent } from "@/server/agent/logging";
 import type { RefinedIcp } from "@/server/types";
 
 /**
- * Resolves the path to the Claude Agent SDK native binary.
+ * Resolves the Claude Agent SDK native binary path using the same mechanism
+ * the SDK uses internally (createRequire relative to the SDK package), so it
+ * works regardless of process.cwd() — which can differ between local dev and
+ * Vercel's serverless runtime.
  *
- * The SDK ships the binary as optional platform-specific packages.
- * Vercel can strip optional deps, so we pin @anthropic-ai/claude-agent-sdk-linux-x64
- * as a regular dependency and point the SDK at it explicitly via
- * pathToClaudeCodeExecutable — this works regardless of whether Vercel
- * treats the package as optional.
+ * We pass the resolved path explicitly via pathToClaudeCodeExecutable so the
+ * SDK never needs to do its own discovery (which fails when optional packages
+ * are missing or the working directory is unexpected).
  *
  * Candidate order:
- *  1. CLAUDE_CODE_EXECUTABLE env var (allows override in any environment)
- *  2. linux-x64 platform package (Vercel production)
- *  3. darwin-arm64 platform package (local Mac dev)
- *  4. darwin-x64 platform package
- *  5. undefined — let the SDK find it automatically (fallback)
+ *   1. linux-x64 (Vercel production — glibc)
+ *   2. darwin-arm64 (local Mac M-series)
+ *   3. darwin-x64 (local Mac Intel)
+ *   4. undefined → SDK falls back to its own discovery
  */
 function resolveClaudeBinaryPath(): string | undefined {
-  if (process.env.CLAUDE_CODE_EXECUTABLE) return process.env.CLAUDE_CODE_EXECUTABLE;
-
+  const _require = createRequire(import.meta.url);
   const candidates = [
-    path.join(process.cwd(), "node_modules/@anthropic-ai/claude-agent-sdk-linux-x64/claude"),
-    path.join(process.cwd(), "node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/claude"),
-    path.join(process.cwd(), "node_modules/@anthropic-ai/claude-agent-sdk-darwin-x64/claude"),
+    "@anthropic-ai/claude-agent-sdk-linux-x64/claude",
+    "@anthropic-ai/claude-agent-sdk-darwin-arm64/claude",
+    "@anthropic-ai/claude-agent-sdk-darwin-x64/claude",
   ];
-
-  for (const candidate of candidates) {
+  for (const pkg of candidates) {
     try {
-      if (fs.existsSync(candidate)) return candidate;
+      return _require.resolve(pkg);
     } catch {
-      // ignore — try next
+      // package not installed for this platform — try next
     }
   }
   return undefined;
