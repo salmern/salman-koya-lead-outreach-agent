@@ -78,6 +78,7 @@ export async function processRun(runId: string): Promise<void> {
     await updateRun(runId, {
       quality_report: report,
       status,
+      error_message: null,
       completed_at: new Date().toISOString(),
     });
     await logEvent(

@@ -119,7 +119,8 @@ export async function runRefinePhase(runId: string): Promise<AgentOutcome> {
   const run = await getRun(runId);
   if (!run) throw new Error("Run not found.");
 
-  await updateRun(runId, { status: "refining" });
+  // Clear any error left by a previous failed attempt on this run.
+  await updateRun(runId, { status: "refining", error_message: null });
 
   // Without an Anthropic key we refuse to pretend AI ran. A clearly-labelled
   // deterministic refinement is used instead so the workflow stays honest.
