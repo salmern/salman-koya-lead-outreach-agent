@@ -1,5 +1,7 @@
 import "server-only";
 
+import * as path from "node:path";
+import * as fs from "node:fs";
 import { query, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 
 import { config, effectiveLimits, isExternalIntegrationConfigured } from "@/server/config";
@@ -16,6 +18,43 @@ import {
 import type { ToolEnv } from "@/server/agent/env";
 import { logEvent } from "@/server/agent/logging";
 import type { RefinedIcp } from "@/server/types";
+
+/**
+ * Resolves the path to the Claude Agent SDK native binary.
+ *
+ * The SDK ships the binary as optional platform-specific packages.
+ * Vercel can strip optional deps, so we pin @anthropic-ai/claude-agent-sdk-linux-x64
+ * as a regular dependency and point the SDK at it explicitly via
+ * pathToClaudeCodeExecutable — this works regardless of whether Vercel
+ * treats the package as optional.
+ *
+ * Candidate order:
+ *  1. CLAUDE_CODE_EXECUTABLE env var (allows override in any environment)
+ *  2. linux-x64 platform package (Vercel production)
+ *  3. darwin-arm64 platform package (local Mac dev)
+ *  4. darwin-x64 platform package
+ *  5. undefined — let the SDK find it automatically (fallback)
+ */
+function resolveClaudeBinaryPath(): string | undefined {
+  if (process.env.CLAUDE_CODE_EXECUTABLE) return process.env.CLAUDE_CODE_EXECUTABLE;
+
+  const candidates = [
+    path.join(process.cwd(), "node_modules/@anthropic-ai/claude-agent-sdk-linux-x64/claude"),
+    path.join(process.cwd(), "node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/claude"),
+    path.join(process.cwd(), "node_modules/@anthropic-ai/claude-agent-sdk-darwin-x64/claude"),
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      if (fs.existsSync(candidate)) return candidate;
+    } catch {
+      // ignore — try next
+    }
+  }
+  return undefined;
+}
+
+const CLAUDE_BINARY_PATH = resolveClaudeBinaryPath();
 
 const sdkEnv: Record<string, string | undefined> = {
   ...process.env,
@@ -146,6 +185,7 @@ export async function runRefinePhase(runId: string): Promise<AgentOutcome> {
         settingSources: ["project"],
         maxTurns: Math.min(effectiveLimits(run.tool_limits).maxAgentTurns, 8),
         ...(config.claudeModel ? { model: config.claudeModel } : {}),
+        ...(CLAUDE_BINARY_PATH ? { pathToClaudeCodeExecutable: CLAUDE_BINARY_PATH } : {}),
         abortController,
         env: sdkEnv,
       },
@@ -227,6 +267,7 @@ export async function runResearchPhase(runId: string, options: ResearchRunOption
         settingSources: ["project"],
         maxTurns: limits.maxAgentTurns,
         ...(config.claudeModel ? { model: config.claudeModel } : {}),
+        ...(CLAUDE_BINARY_PATH ? { pathToClaudeCodeExecutable: CLAUDE_BINARY_PATH } : {}),
         abortController,
         env: sdkEnv,
       },
