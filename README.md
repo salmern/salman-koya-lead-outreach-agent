@@ -1,4 +1,4 @@
-# Koya Lead Agent — Week 5
+# Koya Lead Agent
 
 An AI lead research and outreach agent for Koya Talent. A user enters a
 qualification objective; the agent refines the ICP, researches companies with
